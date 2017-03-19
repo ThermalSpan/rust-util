@@ -1,0 +1,158 @@
+static P1_WHEEL: &'static [u32] = &[2];
+static P2_WHEEL: &'static [u32] = &[2, 3];
+static P3_WHEEL: &'static [u32] = &[2, 3, 5];
+static P4_WHEEL: &'static [u32] = &[2, 3, 5, 7];
+static P5_WHEEL: &'static [u32] = &[2, 3, 5, 7, 11];
+
+static P1_PRIMES: &'static [u32] = &[2];
+
+use std::collections::BinaryHeap;
+use std::collections::HashMap;
+
+pub struct Wheel {
+    increments: Vec<u32>,
+    next_index: usize,
+    last_result: u32,
+    cache: Vec<u32>,
+}
+
+impl Wheel {
+    pub fn identity() -> Wheel {
+        Wheel {
+            increments: vec![1],
+            next_index: 0,
+            last_result: 0,
+            cache: Vec::with_capacity(0),
+        }
+    }
+
+    pub fn new(primer: &'static [u32], primes: &'static [u32]) -> Wheel {
+        Wheel {
+            increments: primer.to_vec(),
+            next_index: 0,
+            last_result: 0,
+            cache: primes.to_vec(),
+        }
+    }
+}
+
+impl Iterator for Wheel {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        self.last_result += self.increments[self.next_index];
+        self.next_index = (self.next_index + 1) % self.increments.len();
+        Some(self.last_result)
+    }
+}
+
+pub struct Sieve {
+    wheel: Wheel,
+    cache_index: usize,
+    multiples: BinaryHeap<u32>,
+    multiple_map: HashMap<u32, Vec<u32>>,
+}
+
+impl Sieve {
+    pub fn new_p1() -> Sieve {
+        Sieve {
+            wheel: Wheel::new(P1_WHEEL, P1_PRIMES),
+            cache_index: 0,
+            multiples: BinaryHeap::new(),
+            multiple_map: HashMap::new(),
+        }
+    }
+
+    fn insert_next_cross(&mut self, next_cross: u32, p: u32) {
+        let check = self.multiple_map.contains_key(&next_cross);
+        if check {
+            self.multiple_map
+                .get(&next_cross)
+                .unwrap()
+                .push(p);
+        } else {
+            self.multiple_map
+                .insert(next_cross, vec![p]);
+
+            self.multiples.push(next_cross);
+        }
+    }
+    
+    fn cross_out_multiples(&mut self) {
+       let multiple = self.multiples.pop().unwrap();
+
+       let primes = self.multiple_map
+           .remove(&multiple)
+           .unwrap();
+
+        for p in primes.into_iter() {
+            let next_cross = multiple + p;
+            
+            self.insert_next_cross(next_cross, p);
+        }
+    }
+    
+
+    fn insert_new_prime(&mut self, p: u32) {
+        self.multiples.push(p);
+
+        let next_cross = p + p;
+
+        self.insert_next_cross(next_cross, p);
+    }
+}
+
+impl Iterator for Sieve {
+   type Item = u32; 
+
+   fn next(&mut self) -> Option<u32> {
+        if let Some(next) = self.wheel.cache.get(self.cache_index) {
+            self.cache_index += 1;
+            return Some(next.clone());
+        }
+
+       'wheel_loop: loop {
+            let mut next = self.wheel.next().unwrap();
+            
+            'cross_out_loop: loop {
+                let multiple = match self.multiples.peek() {
+                    Some(m) => m,
+                    None => {
+                        break 'cross_out_loop
+                    }
+                };
+
+                if multiple <= &next {
+                    self.cross_out_multiples(); 
+                }
+
+                if multiple == &next {
+                    continue 'wheel_loop;
+                }
+            }
+
+            self.insert_new_prime(next);
+            return Some(next);
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identity_10() {
+        let result: Vec<u32> = Wheel::identity().into_iter().take(10).collect();
+        let answer: Vec<u32> = (1..11).collect();
+        assert_eq!(result, answer);
+    }
+
+    #[test]
+    fn identity_10000() {
+        let result: Vec<u32> = Wheel::identity().into_iter().take(10000).collect();
+        let answer: Vec<u32> = (1..10001).collect();
+        assert_eq!(result, answer);
+    }
+}
