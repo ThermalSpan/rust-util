@@ -4,7 +4,12 @@
 //! That's all for now.
 //! The lib.rs file just re-exports everything
 
+#![feature(test)]
+
+extern crate num;
+extern crate test;
+
 //mod primes;
 mod min_heap;
-mod num;
-mod primestwo;
+mod num_util;
+pub mod primestwo;

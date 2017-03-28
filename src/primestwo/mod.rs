@@ -1,39 +1,43 @@
+
 use min_heap::MinHeap;
+use num::One;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
+use std::hash::Hash;
+use std::ops::{Add, AddAssign};
 
 
-struct RevOrd<T> (pub T);
-
-pub struct Sieve {
-    i: u32,
-    heap: MinHeap<u32>,
-    map: HashMap<u32, Vec<u32>>,
+pub struct Sieve<N: Clone + Ord + Add<Output=N> + One + Hash> {
+    i: N,
+    heap: MinHeap<N>,
+    map: HashMap<N, Vec<N>>,
 }
 
-impl Sieve {
-    fn new() -> Sieve {
+impl <N: Copy + Ord + Add<Output=N> + One + Hash> Sieve<N> {
+    pub fn new() -> Sieve<N> {
         Sieve {
-            i: 1,
+            i: N::one(),
             heap: MinHeap::new(),
             map: HashMap::new(),
         }
     }
 
-    fn cross_out_next_multiple(&mut self, p: u32) {
+    fn cross_out_next_multiple(&mut self, p: N) {
         let next_cross = self.i + p;
         let already_crossed = self.map.contains_key(&next_cross);
         if already_crossed {
-            self.map.get_mut(&next_cross).unwrap().push(p);
+            self.map.get_mut(&next_cross).unwrap().push(p.clone());
         } else {
+            self.map.insert(next_cross.clone(), vec![p]);
             self.heap.push(next_cross);
-            self.map.insert(next_cross, vec![p]);
         }
     }
 
-    fn loop_f(&mut self, n: u32) {
+    fn loop_f(&mut self, n: N) {
         let x = self.heap.pop();
-        let v = self.map.remove(&n).unwrap();
+        let v = self.map
+            .remove(&n)
+            .unwrap();
 
         for p in v {
             self.cross_out_next_multiple(p);
@@ -42,11 +46,11 @@ impl Sieve {
 }
 
 
-impl Iterator for Sieve {
-    type Item = u32;
-    
-    fn next(&mut self) -> Option<u32> {
-        self.i += 1;
+impl <N: Copy + Ord + Add<Output=N> + Clone + One + Hash> Iterator for Sieve<N> {
+    type Item = N;
+
+    fn next(&mut self) -> Option<N> {
+        self.i = self.i + N::one();
         loop {
             let n;
             if let Some(next) = self.heap.peek() {
@@ -54,7 +58,7 @@ impl Iterator for Sieve {
             } else {
                 break;
             }
-            
+
             if n > self.i {
                 break;
             }
@@ -62,10 +66,12 @@ impl Iterator for Sieve {
             self.loop_f(n);
 
             if n == self.i {
-                self.i += 1;
+                self.i = self.i + N::one();
             }
         }
-        let result = self.i; self.cross_out_next_multiple(result); 
+
+        let result = self.i;
+        self.cross_out_next_multiple(result);
         Some(result)
     }
 }
@@ -73,17 +79,18 @@ impl Iterator for Sieve {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test::Bencher;
 
     #[test]
     fn Sieve_smalltest() {
-        let mut s = Sieve::new();
+        let mut s: Sieve<u32> = Sieve::new();
         assert_eq!(s.next().unwrap(), 2);
         assert_eq!(s.next().unwrap(), 3);
         assert_eq!(s.next().unwrap(), 5);
         assert_eq!(s.next().unwrap(), 7);
         assert_eq!(s.next().unwrap(), 11);
     }
-    
+
     #[test]
     fn Sieve_100test() {
         let mut s = Sieve::new();
@@ -103,5 +110,12 @@ mod tests {
         ];
 
         assert_eq!(result, answer);
+    }
+
+    #[bench]
+    fn Sieve_1000_u32_bench(b: &mut Bencher) {
+        let mut s: Sieve<u32> = Sieve::new();
+
+        let s: Vec<u32> = s.take(1000).collect();
     }
 }
